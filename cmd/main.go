@@ -24,7 +24,8 @@ import (
 
 // Config holds application configuration
 type Config struct {
-	LEDs        int    `yaml:"leds" flag:"leds"`
+	Rows        int    `yaml:"rows" flag:"rows"`
+	Cols        int    `yaml:"cols" flag:"cols"`
 	HTTPAddress string `yaml:"http_address" flag:"http"`
 	DDPPort     int    `yaml:"ddp_port" flag:"ddp-port"`
 	InitColor   string `yaml:"init_color" flag:"init"`
@@ -36,7 +37,8 @@ type Config struct {
 func main() {
 	// Command line flags
 	var cfg Config
-	flag.IntVar(&cfg.LEDs, "leds", 20, "LEDs per column")
+	flag.IntVar(&cfg.Rows, "rows", 10, "Number of LED rows")
+	flag.IntVar(&cfg.Cols, "cols", 2, "Number of LED columns")
 	flag.StringVar(&cfg.HTTPAddress, "http", ":8080", "HTTP listen address")
 	flag.IntVar(&cfg.DDPPort, "ddp-port", 4048, "UDP port for DDP")
 	flag.StringVar(&cfg.InitColor, "init", "#000000", "Initial color hex")
@@ -74,15 +76,18 @@ func main() {
 		}
 	})
 
+	// Calculate total LEDs
+	totalLEDs := cfg.Rows * cfg.Cols
+
 	// Initialize shared state
-	ledState := state.NewLEDState(cfg.LEDs*2, cfg.InitColor)
+	ledState := state.NewLEDState(totalLEDs, cfg.InitColor)
 
 	// Setup logging
 	if cfg.Verbose {
 		log.SetFlags(log.LstdFlags | log.Lshortfile)
 	}
 
-	fmt.Printf("WLED Simulator starting with %d LEDs per column\n", cfg.LEDs)
+	fmt.Printf("WLED Simulator starting with %dx%d LED matrix (%d total LEDs)\n", cfg.Rows, cfg.Cols, totalLEDs)
 	fmt.Printf("HTTP API on %s\n", cfg.HTTPAddress)
 	fmt.Printf("DDP listening on port %d\n", cfg.DDPPort)
 
@@ -120,7 +125,7 @@ func main() {
 	if !cfg.Headless {
 		fmt.Println("Starting GUI...")
 		myApp := app.NewWithID("com.example.wled-simulator")
-		guiApp := gui.NewApp(myApp, ledState, cfg.LEDs, cfg.Controls)
+		guiApp := gui.NewApp(myApp, ledState, cfg.Rows, cfg.Cols, cfg.Controls)
 
 		// Create shutdown function for servers
 		shutdownServers := func() {

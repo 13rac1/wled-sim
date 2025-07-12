@@ -4,7 +4,7 @@ A minimal but extensible desktop application that behaves like a real WLED node 
 
 ## Features
 
-* A vertical column of configurable LEDs displayed in a Fyne GUI.
+* Configurable LED matrix display in a Fyne GUI.
 * Full WLED JSON API (`/json`, `/json/state`, `/json/info`).
 * DDP UDP listener on port 4048 for real-time LED streaming.
 * Thread-safe shared LED state with power and brightness control.
@@ -18,7 +18,7 @@ A minimal but extensible desktop application that behaves like a real WLED node 
 git clone https://github.com/13rac1/wled-simulator
 cd wled-simulator
 go mod tidy
-go run ./cmd -leds 30 -http :9090 -init "#202020"
+go run ./cmd -rows 10 -cols 3 -http :9090 -init "#00FF00"
 ```
 
 Open `http://localhost:9090/json` in your browser or point your WLED mobile app at the same address to test live control.
@@ -27,7 +27,8 @@ Open `http://localhost:9090/json` in your browser or point your WLED mobile app 
 
 | Flag        | Default | Description                          |
 |-------------|---------|--------------------------------------|
-| `-leds`     | 20      | LEDs per column                      |
+| `-rows`     | 10      | Number of LED rows                   |
+| `-cols`     | 2       | Number of LED columns                |
 | `-http`     | :8080   | HTTP listen address                  |
 | `-ddp-port` | 4048    | UDP port for DDP                     |
 | `-init`     | #000000 | Initial LED colour (hex)             |
@@ -38,7 +39,8 @@ Open `http://localhost:9090/json` in your browser or point your WLED mobile app 
 You can also create a `config.yaml` file with the same keys to persist defaults.
 
 ```yaml
-leds: 30
+rows: 10
+cols: 3
 http_address: ":9090"
 ddp_port: 4048
 init_color: "#202020"

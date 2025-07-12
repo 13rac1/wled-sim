@@ -20,24 +20,34 @@ type GUI struct {
 	window     fyne.Window
 	rectangles []*canvas.Rectangle
 	state      *state.LEDState
+	rows       int
+	cols       int
 }
 
-func NewApp(app fyne.App, s *state.LEDState, leds int, controls bool) *GUI {
+func NewApp(app fyne.App, s *state.LEDState, rows, cols int, controls bool) *GUI {
+	totalLEDs := rows * cols
 	gui := &GUI{
 		app:        app,
 		state:      s,
-		rectangles: make([]*canvas.Rectangle, leds*2),
+		rectangles: make([]*canvas.Rectangle, totalLEDs),
+		rows:       rows,
+		cols:       cols,
 	}
 	gui.window = app.NewWindow("WLED Simulator")
 
-	grid := container.NewGridWrap(fyne.NewSize(20, 20))
-	for i := 0; i < leds*2; i++ {
+	// Create a grid container with the specified number of columns
+	grid := container.NewGridWithColumns(cols)
+
+	// Add rectangles in row-major order (left-to-right, top-to-bottom)
+	for i := 0; i < totalLEDs; i++ {
 		rect := canvas.NewRectangle(color.Black)
+		rect.Resize(fyne.NewSize(20, 20))
 		gui.rectangles[i] = rect
 		grid.Add(rect)
 	}
 
 	gui.window.SetContent(grid)
+	gui.window.Resize(fyne.NewSize(float32(cols*25), float32(rows*25)))
 
 	// Default close behavior just quits the app
 	gui.window.SetCloseIntercept(func() {
