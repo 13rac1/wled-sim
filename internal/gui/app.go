@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"wled-simulator/internal/state"
 
@@ -15,17 +16,24 @@ import (
 )
 
 type GUI struct {
-	app    fyne.App
-	window fyne.Window
+	app        fyne.App
+	window     fyne.Window
+	rectangles []*canvas.Rectangle
+	state      *state.LEDState
 }
 
 func NewApp(app fyne.App, s *state.LEDState, leds int, controls bool) *GUI {
-	gui := &GUI{app: app}
+	gui := &GUI{
+		app:        app,
+		state:      s,
+		rectangles: make([]*canvas.Rectangle, leds*2),
+	}
 	gui.window = app.NewWindow("WLED Simulator")
 
 	grid := container.NewGridWrap(fyne.NewSize(20, 20))
 	for i := 0; i < leds*2; i++ {
 		rect := canvas.NewRectangle(color.Black)
+		gui.rectangles[i] = rect
 		grid.Add(rect)
 	}
 
@@ -36,7 +44,33 @@ func NewApp(app fyne.App, s *state.LEDState, leds int, controls bool) *GUI {
 		gui.app.Quit()
 	})
 
+	// Start update loop
+	go gui.updateLoop()
+
 	return gui
+}
+
+// updateLoop periodically updates the LED display
+func (g *GUI) updateLoop() {
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		g.updateDisplay()
+	}
+}
+
+// updateDisplay updates all rectangles from the current LED state
+func (g *GUI) updateDisplay() {
+	leds := g.state.LEDs()
+	fyne.DoAndWait(func() {
+		for i, led := range leds {
+			if i < len(g.rectangles) {
+				g.rectangles[i].FillColor = led
+				g.rectangles[i].Refresh()
+			}
+		}
+	})
 }
 
 // SetOnClose sets a custom close handler for the window

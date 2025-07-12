@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"image/color"
 	"net/http"
 
 	"wled-simulator/internal/state"
@@ -90,5 +91,25 @@ func (s *Server) handlePostState(c *gin.Context) {
 	if p.Bri != nil {
 		s.state.SetBrightness(*p.Bri)
 	}
+
+	// Process segment colors
+	if len(p.Seg) > 0 && len(p.Seg[0].Col) > 0 {
+		// Get the first color from the first segment
+		col := p.Seg[0].Col[0]
+		if len(col) >= 3 {
+			// Convert RGB values to color.RGBA
+			r := uint8(col[0])
+			g := uint8(col[1])
+			b := uint8(col[2])
+			ledColor := color.RGBA{R: r, G: g, B: b, A: 255}
+
+			// Set all LEDs to this color
+			leds := s.state.LEDs()
+			for i := range leds {
+				s.state.SetLED(i, ledColor)
+			}
+		}
+	}
+
 	c.Status(http.StatusNoContent)
 }

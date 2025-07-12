@@ -52,6 +52,40 @@ Run all unit tests:
 go test ./...
 ```
 
+### Manual Testing with curl
+
+Test the HTTP API endpoints with these curl commands (assumes simulator running on localhost:8080):
+
+**Set all LEDs to blue:**
+```bash
+curl -X POST http://localhost:8080/json/state -H "Content-Type: application/json" -d '{"on":true,"bri":255,"seg":[{"col":[[0,0,255]]}]}'
+```
+
+**Set all LEDs to red:**
+```bash
+curl -X POST http://localhost:8080/json/state -H "Content-Type: application/json" -d '{"seg":[{"col":[[255,0,0]]}]}'
+```
+
+**Set all LEDs to green:**
+```bash
+curl -X POST http://localhost:8080/json/state -H "Content-Type: application/json" -d '{"seg":[{"col":[[0,255,0]]}]}'
+```
+
+**Set all LEDs to white:**
+```bash
+curl -X POST http://localhost:8080/json/state -H "Content-Type: application/json" -d '{"seg":[{"col":[[255,255,255]]}]}'
+```
+
+**Get current state:**
+```bash
+curl http://localhost:8080/json/state
+```
+
+**Get device info:**
+```bash
+curl http://localhost:8080/json/info
+```
+
 ## Extending
 
 * **Add effects** – implement a ticker that mutates the `LEDState` slice, then expose the effect list in `/json`.
