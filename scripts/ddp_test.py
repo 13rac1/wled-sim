@@ -130,7 +130,7 @@ def main():
     parser.add_argument('--leds', type=int, default=20, help='Number of LEDs (default: 20)')
     parser.add_argument('--color', choices=['red', 'green', 'blue', 'white', 'yellow', 'cyan', 'magenta', 'orange'], 
                        help='Solid color to display')
-    parser.add_argument('--pattern', choices=['rainbow', 'cycle', 'gradient'], 
+    parser.add_argument('--pattern', choices=['rainbow', 'cycle', 'gradient', 'chase'], 
                        help='Pattern to display')
     parser.add_argument('--delay', type=float, default=1.0, help='Delay between updates for patterns (default: 1.0)')
     parser.add_argument('--iterations', type=int, default=10, help='Number of iterations for patterns (default: 10)')
@@ -169,6 +169,26 @@ def main():
             print(f"Displaying gradient pattern on {args.leds} LEDs")
             rgb_data = create_gradient(args.leds, (255, 0, 0), (0, 0, 255))  # Red to blue
             client.send_rgb_data(rgb_data)
+            
+        elif args.pattern == 'chase':
+            # Chase pattern - light LEDs sequentially
+            print(f"Running chase pattern on {args.leds} LEDs ({args.iterations} iterations)")
+            for iteration in range(args.iterations):
+                print(f"  Iteration {iteration + 1}/{args.iterations}")
+                for led_index in range(args.leds):
+                    # Create array with all LEDs off (black)
+                    rgb_data = [(0, 0, 0)] * args.leds
+                    # Light current LED in green
+                    rgb_data[led_index] = (0, 255, 0)
+                    
+                    print(f"    Lighting LED {led_index}")
+                    client.send_rgb_data(rgb_data)
+                    time.sleep(args.delay)
+                
+                # Turn all LEDs off at the end of each iteration
+                rgb_data = [(0, 0, 0)] * args.leds
+                client.send_rgb_data(rgb_data)
+                time.sleep(args.delay)
             
         elif args.pattern == 'cycle':
             # Cycle through colors

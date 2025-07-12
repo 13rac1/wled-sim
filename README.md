@@ -131,6 +131,11 @@ python3 scripts/ddp_test.py --pattern rainbow
 python3 scripts/ddp_test.py --pattern gradient
 ```
 
+**Run chase pattern (great for testing wiring):**
+```bash
+python3 scripts/ddp_test.py --pattern chase --delay 0.5
+```
+
 **Cycle through colors:**
 ```bash
 python3 scripts/ddp_test.py --pattern cycle --delay 0.5
