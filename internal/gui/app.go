@@ -22,9 +22,10 @@ type GUI struct {
 	state      *state.LEDState
 	rows       int
 	cols       int
+	wiring     string
 }
 
-func NewApp(app fyne.App, s *state.LEDState, rows, cols int, controls bool) *GUI {
+func NewApp(app fyne.App, s *state.LEDState, rows, cols int, wiring string, controls bool) *GUI {
 	totalLEDs := rows * cols
 	gui := &GUI{
 		app:        app,
@@ -32,13 +33,14 @@ func NewApp(app fyne.App, s *state.LEDState, rows, cols int, controls bool) *GUI
 		rectangles: make([]*canvas.Rectangle, totalLEDs),
 		rows:       rows,
 		cols:       cols,
+		wiring:     wiring,
 	}
 	gui.window = app.NewWindow("WLED Simulator")
 
 	// Create a grid container with the specified number of columns
 	grid := container.NewGridWithColumns(cols)
 
-	// Add rectangles in row-major order (left-to-right, top-to-bottom)
+	// Add rectangles in row-major order for display (left-to-right, top-to-bottom)
 	for i := 0; i < totalLEDs; i++ {
 		rect := canvas.NewRectangle(color.Black)
 		rect.Resize(fyne.NewSize(20, 20))
@@ -60,6 +62,26 @@ func NewApp(app fyne.App, s *state.LEDState, rows, cols int, controls bool) *GUI
 	return gui
 }
 
+// ledIndexToGridPosition converts a linear LED index to grid position based on wiring pattern
+func (g *GUI) ledIndexToGridPosition(ledIndex int) (row, col int) {
+	if g.wiring == "col" {
+		// Column-major: LEDs go top-to-bottom, then left-to-right
+		row = ledIndex % g.rows
+		col = ledIndex / g.rows
+	} else {
+		// Row-major: LEDs go left-to-right, then top-to-bottom (default)
+		row = ledIndex / g.cols
+		col = ledIndex % g.cols
+	}
+	return row, col
+}
+
+// gridPositionToDisplayIndex converts grid position to display rectangle index
+func (g *GUI) gridPositionToDisplayIndex(row, col int) int {
+	// Display is always row-major (left-to-right, top-to-bottom)
+	return row*g.cols + col
+}
+
 // updateLoop periodically updates the LED display
 func (g *GUI) updateLoop() {
 	ticker := time.NewTicker(50 * time.Millisecond)
@@ -74,10 +96,18 @@ func (g *GUI) updateLoop() {
 func (g *GUI) updateDisplay() {
 	leds := g.state.LEDs()
 	fyne.DoAndWait(func() {
-		for i, led := range leds {
-			if i < len(g.rectangles) {
-				g.rectangles[i].FillColor = led
-				g.rectangles[i].Refresh()
+		for ledIndex, ledColor := range leds {
+			if ledIndex < len(leds) {
+				// Convert LED index to grid position based on wiring
+				row, col := g.ledIndexToGridPosition(ledIndex)
+
+				// Convert grid position to display rectangle index
+				displayIndex := g.gridPositionToDisplayIndex(row, col)
+
+				if displayIndex < len(g.rectangles) {
+					g.rectangles[displayIndex].FillColor = ledColor
+					g.rectangles[displayIndex].Refresh()
+				}
 			}
 		}
 	})

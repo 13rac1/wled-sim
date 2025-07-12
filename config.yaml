@@ -1,5 +1,6 @@
 rows: 10
 cols: 2
+wiring: "col"
 http_address: ":8080"
 ddp_port: 4048
 init_color: "#FF0000"

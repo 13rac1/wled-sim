@@ -26,6 +26,7 @@ import (
 type Config struct {
 	Rows        int    `yaml:"rows" flag:"rows"`
 	Cols        int    `yaml:"cols" flag:"cols"`
+	Wiring      string `yaml:"wiring" flag:"wiring"`
 	HTTPAddress string `yaml:"http_address" flag:"http"`
 	DDPPort     int    `yaml:"ddp_port" flag:"ddp-port"`
 	InitColor   string `yaml:"init_color" flag:"init"`
@@ -39,6 +40,7 @@ func main() {
 	var cfg Config
 	flag.IntVar(&cfg.Rows, "rows", 10, "Number of LED rows")
 	flag.IntVar(&cfg.Cols, "cols", 2, "Number of LED columns")
+	flag.StringVar(&cfg.Wiring, "wiring", "row", "LED wiring pattern: 'row' (row-major) or 'col' (column-major)")
 	flag.StringVar(&cfg.HTTPAddress, "http", ":8080", "HTTP listen address")
 	flag.IntVar(&cfg.DDPPort, "ddp-port", 4048, "UDP port for DDP")
 	flag.StringVar(&cfg.InitColor, "init", "#000000", "Initial color hex")
@@ -76,6 +78,11 @@ func main() {
 		}
 	})
 
+	// Validate wiring pattern
+	if cfg.Wiring != "row" && cfg.Wiring != "col" {
+		log.Fatalf("Invalid wiring pattern '%s'. Must be 'row' or 'col'", cfg.Wiring)
+	}
+
 	// Calculate total LEDs
 	totalLEDs := cfg.Rows * cfg.Cols
 
@@ -87,7 +94,7 @@ func main() {
 		log.SetFlags(log.LstdFlags | log.Lshortfile)
 	}
 
-	fmt.Printf("WLED Simulator starting with %dx%d LED matrix (%d total LEDs)\n", cfg.Rows, cfg.Cols, totalLEDs)
+	fmt.Printf("WLED Simulator starting with %dx%d LED matrix (%d total LEDs, %s-major wiring)\n", cfg.Rows, cfg.Cols, totalLEDs, cfg.Wiring)
 	fmt.Printf("HTTP API on %s\n", cfg.HTTPAddress)
 	fmt.Printf("DDP listening on port %d\n", cfg.DDPPort)
 
@@ -125,7 +132,7 @@ func main() {
 	if !cfg.Headless {
 		fmt.Println("Starting GUI...")
 		myApp := app.NewWithID("com.example.wled-simulator")
-		guiApp := gui.NewApp(myApp, ledState, cfg.Rows, cfg.Cols, cfg.Controls)
+		guiApp := gui.NewApp(myApp, ledState, cfg.Rows, cfg.Cols, cfg.Wiring, cfg.Controls)
 
 		// Create shutdown function for servers
 		shutdownServers := func() {

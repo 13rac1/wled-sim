@@ -29,6 +29,7 @@ Open `http://localhost:9090/json` in your browser or point your WLED mobile app 
 |-------------|---------|--------------------------------------|
 | `-rows`     | 10      | Number of LED rows                   |
 | `-cols`     | 2       | Number of LED columns                |
+| `-wiring`   | row     | LED wiring pattern: 'row' or 'col'  |
 | `-http`     | :8080   | HTTP listen address                  |
 | `-ddp-port` | 4048    | UDP port for DDP                     |
 | `-init`     | #000000 | Initial LED colour (hex)             |
@@ -41,10 +42,28 @@ You can also create a `config.yaml` file with the same keys to persist defaults.
 ```yaml
 rows: 10
 cols: 3
+wiring: "col"
 http_address: ":9090"
 ddp_port: 4048
 init_color: "#202020"
 ```
+
+### LED Wiring Patterns
+
+The simulator supports two common LED matrix wiring patterns:
+
+- **Row-major (`-wiring row`)**: LEDs are wired left-to-right, then top-to-bottom
+  ```
+  0 → 1 → 2
+  3 → 4 → 5
+  ```
+
+- **Column-major (`-wiring col`)**: LEDs are wired top-to-bottom, then left-to-right
+  ```
+  0   2   4
+  ↓   ↓   ↓
+  1   3   5
+  ```
 
 ## Testing
 
