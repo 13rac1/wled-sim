@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"reflect"
 	"sync"
 	"syscall"
 	"time"
@@ -23,13 +24,13 @@ import (
 
 // Config holds application configuration
 type Config struct {
-	LEDs        int    `yaml:"leds"`
-	HTTPAddress string `yaml:"http_address"`
-	DDPPort     int    `yaml:"ddp_port"`
-	InitColor   string `yaml:"init_color"`
-	Controls    bool   `yaml:"controls"`
-	Headless    bool   `yaml:"headless"`
-	Verbose     bool   `yaml:"verbose"`
+	LEDs        int    `yaml:"leds" flag:"leds"`
+	HTTPAddress string `yaml:"http_address" flag:"http"`
+	DDPPort     int    `yaml:"ddp_port" flag:"ddp-port"`
+	InitColor   string `yaml:"init_color" flag:"init"`
+	Controls    bool   `yaml:"controls" flag:"controls"`
+	Headless    bool   `yaml:"headless" flag:"headless"`
+	Verbose     bool   `yaml:"verbose" flag:"v"`
 }
 
 func main() {
@@ -46,12 +47,32 @@ func main() {
 	configFile := flag.String("config", "config.yaml", "Configuration file path")
 	flag.Parse()
 
-	// Load config file if it exists
+	// Save CLI values before loading config file
+	cliValues := cfg
+
+	// Load config file if it exists (this will overwrite cfg with file values)
 	if data, err := os.ReadFile(*configFile); err == nil {
 		if err := yaml.Unmarshal(data, &cfg); err != nil {
 			log.Printf("Error parsing config file: %v", err)
 		}
 	}
+
+	// Restore CLI values that were explicitly set using reflection
+	cfgValue := reflect.ValueOf(&cfg).Elem()
+	cliValue := reflect.ValueOf(&cliValues).Elem()
+	cfgType := reflect.TypeOf(cfg)
+
+	flag.Visit(func(f *flag.Flag) {
+		// Find the struct field that matches this flag
+		for i := 0; i < cfgType.NumField(); i++ {
+			field := cfgType.Field(i)
+			if flagName := field.Tag.Get("flag"); flagName == f.Name {
+				// Set the config value to the CLI value
+				cfgValue.Field(i).Set(cliValue.Field(i))
+				break
+			}
+		}
+	})
 
 	// Initialize shared state
 	ledState := state.NewLEDState(cfg.LEDs*2, cfg.InitColor)
