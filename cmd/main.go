@@ -1,0 +1,152 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
+
+	"wled-simulator/internal/api"
+	"wled-simulator/internal/ddp"
+	"wled-simulator/internal/gui"
+	"wled-simulator/internal/state"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/app"
+	"gopkg.in/yaml.v3"
+)
+
+// Config holds application configuration
+type Config struct {
+	LEDs        int    `yaml:"leds"`
+	HTTPAddress string `yaml:"http_address"`
+	DDPPort     int    `yaml:"ddp_port"`
+	InitColor   string `yaml:"init_color"`
+	Controls    bool   `yaml:"controls"`
+	Headless    bool   `yaml:"headless"`
+	Verbose     bool   `yaml:"verbose"`
+}
+
+func main() {
+	// Command line flags
+	var cfg Config
+	flag.IntVar(&cfg.LEDs, "leds", 20, "LEDs per column")
+	flag.StringVar(&cfg.HTTPAddress, "http", ":8080", "HTTP listen address")
+	flag.IntVar(&cfg.DDPPort, "ddp-port", 4048, "UDP port for DDP")
+	flag.StringVar(&cfg.InitColor, "init", "#000000", "Initial color hex")
+	flag.BoolVar(&cfg.Controls, "controls", false, "Show power/brightness controls in GUI")
+	flag.BoolVar(&cfg.Headless, "headless", false, "Run without GUI")
+	flag.BoolVar(&cfg.Verbose, "v", false, "Verbose logging")
+
+	configFile := flag.String("config", "config.yaml", "Configuration file path")
+	flag.Parse()
+
+	// Load config file if it exists
+	if data, err := os.ReadFile(*configFile); err == nil {
+		if err := yaml.Unmarshal(data, &cfg); err != nil {
+			log.Printf("Error parsing config file: %v", err)
+		}
+	}
+
+	// Initialize shared state
+	ledState := state.NewLEDState(cfg.LEDs*2, cfg.InitColor)
+
+	// Setup logging
+	if cfg.Verbose {
+		log.SetFlags(log.LstdFlags | log.Lshortfile)
+	}
+
+	fmt.Printf("WLED Simulator starting with %d LEDs per column\n", cfg.LEDs)
+	fmt.Printf("HTTP API on %s\n", cfg.HTTPAddress)
+	fmt.Printf("DDP listening on port %d\n", cfg.DDPPort)
+
+	var wg sync.WaitGroup
+
+	// Start DDP server
+	ddpServer := ddp.NewServer(cfg.DDPPort, ledState)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := ddpServer.Start(); err != nil {
+			log.Printf("DDP server error: %v", err)
+		}
+	}()
+
+	// Start HTTP API
+	apiServer := api.NewServer(cfg.HTTPAddress, ledState)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := apiServer.Start(); err != nil && err != http.ErrServerClosed {
+			log.Printf("API server error: %v", err)
+		}
+	}()
+
+	// Give servers a moment to start
+	fmt.Println("Starting servers...")
+	time.Sleep(100 * time.Millisecond)
+
+	// Set up signal handling for graceful shutdown
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
+	// Start GUI if not headless
+	if !cfg.Headless {
+		fmt.Println("Starting GUI...")
+		myApp := app.NewWithID("com.example.wled-simulator")
+		guiApp := gui.NewApp(myApp, ledState, cfg.LEDs, cfg.Controls)
+
+		// Create shutdown function for servers
+		shutdownServers := func() {
+			// Stop servers first
+			if err := ddpServer.Stop(); err != nil {
+				log.Printf("Error stopping DDP server: %v", err)
+			}
+			if err := apiServer.Stop(); err != nil {
+				log.Printf("Error stopping API server: %v", err)
+			}
+		}
+
+		// Set window close handler - this runs on the main UI thread
+		guiApp.SetOnClose(func() {
+			fmt.Println("\nReceived shutdown signal...")
+			shutdownServers()
+			myApp.Quit()
+		})
+
+		// Handle Ctrl+C in a separate goroutine
+		go func() {
+			<-c
+			fmt.Println("\nReceived shutdown signal...")
+			shutdownServers()
+
+			// Use fyne.DoAndWait since we're in a goroutine
+			fyne.DoAndWait(func() {
+				myApp.Quit()
+			})
+		}()
+
+		// Run GUI in main thread
+		guiApp.Run()
+	} else {
+		// In headless mode, wait for interrupt
+		<-c
+		fmt.Println("\nReceived shutdown signal...")
+
+		// Stop servers
+		if err := ddpServer.Stop(); err != nil {
+			log.Printf("Error stopping DDP server: %v", err)
+		}
+		if err := apiServer.Stop(); err != nil {
+			log.Printf("Error stopping API server: %v", err)
+		}
+	}
+
+	fmt.Println("Shutting down...")
+	wg.Wait()
+}

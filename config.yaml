@@ -1,0 +1,7 @@
+leds: 10
+http_address: ":8080"
+ddp_port: 4048
+init_color: "#FF0000"
+controls: true
+headless: false
+verbose: true
