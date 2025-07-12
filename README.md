@@ -4,7 +4,7 @@ A minimal but extensible desktop application that behaves like a real WLED node 
 
 ## Features
 
-* Two vertical columns of configurable LEDs displayed in a Fyne GUI.
+* A vertical column of configurable LEDs displayed in a Fyne GUI.
 * Full WLED JSON API (`/json`, `/json/state`, `/json/info`).
 * DDP UDP listener on port 4048 for real-time LED streaming.
 * Thread-safe shared LED state with power and brightness control.
@@ -84,6 +84,45 @@ curl http://localhost:8080/json/state
 **Get device info:**
 ```bash
 curl http://localhost:8080/json/info
+```
+
+### Manual Testing with DDP
+
+Test the DDP protocol using the included Python script (assumes simulator running on localhost:4048):
+
+**Set all LEDs to blue:**
+```bash
+python3 scripts/ddp_test.py --color blue
+```
+
+**Set all LEDs to red:**
+```bash
+python3 scripts/ddp_test.py --color red
+```
+
+**Display rainbow pattern:**
+```bash
+python3 scripts/ddp_test.py --pattern rainbow
+```
+
+**Display gradient pattern:**
+```bash
+python3 scripts/ddp_test.py --pattern gradient
+```
+
+**Cycle through colors:**
+```bash
+python3 scripts/ddp_test.py --pattern cycle --delay 0.5
+```
+
+**Test with custom LED count:**
+```bash
+python3 scripts/ddp_test.py --color green --leds 30
+```
+
+**Test with remote host:**
+```bash
+python3 scripts/ddp_test.py --color white --host 192.168.1.100
 ```
 
 ## Extending
