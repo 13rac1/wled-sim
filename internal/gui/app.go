@@ -1,10 +1,12 @@
 package gui
 
 import (
+	"context"
 	"fmt"
 	"image/color"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -23,10 +25,15 @@ type GUI struct {
 	rows       int
 	cols       int
 	wiring     string
+	ctx        context.Context
+	cancel     context.CancelFunc
+	wg         sync.WaitGroup
 }
 
 func NewApp(app fyne.App, s *state.LEDState, rows, cols int, wiring string, controls bool) *GUI {
 	totalLEDs := rows * cols
+	ctx, cancel := context.WithCancel(context.Background())
+
 	gui := &GUI{
 		app:        app,
 		state:      s,
@@ -34,6 +41,8 @@ func NewApp(app fyne.App, s *state.LEDState, rows, cols int, wiring string, cont
 		rows:       rows,
 		cols:       cols,
 		wiring:     wiring,
+		ctx:        ctx,
+		cancel:     cancel,
 	}
 	gui.window = app.NewWindow("WLED Simulator")
 
@@ -53,13 +62,21 @@ func NewApp(app fyne.App, s *state.LEDState, rows, cols int, wiring string, cont
 
 	// Default close behavior just quits the app
 	gui.window.SetCloseIntercept(func() {
+		gui.stop()
 		gui.app.Quit()
 	})
 
 	// Start update loop
+	gui.wg.Add(1)
 	go gui.updateLoop()
 
 	return gui
+}
+
+// stop cancels the context and waits for goroutines to finish
+func (g *GUI) stop() {
+	g.cancel()
+	g.wg.Wait()
 }
 
 // ledIndexToGridPosition converts a linear LED index to grid position based on wiring pattern
@@ -84,18 +101,34 @@ func (g *GUI) gridPositionToDisplayIndex(row, col int) int {
 
 // updateLoop periodically updates the LED display
 func (g *GUI) updateLoop() {
+	defer g.wg.Done()
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		g.updateDisplay()
+	for {
+		select {
+		case <-g.ctx.Done():
+			// Context cancelled, stop updating
+			return
+		case <-ticker.C:
+			g.updateDisplay()
+		}
 	}
 }
 
 // updateDisplay updates all rectangles from the current LED state
 func (g *GUI) updateDisplay() {
+	// Check if context is cancelled before attempting GUI operations
+	select {
+	case <-g.ctx.Done():
+		return
+	default:
+	}
+
 	leds := g.state.LEDs()
-	fyne.DoAndWait(func() {
+
+	// Use fyne.Do instead of fyne.DoAndWait to avoid blocking if app is quitting
+	fyne.Do(func() {
 		for ledIndex, ledColor := range leds {
 			if ledIndex < len(leds) {
 				// Convert LED index to grid position based on wiring
@@ -115,7 +148,10 @@ func (g *GUI) updateDisplay() {
 
 // SetOnClose sets a custom close handler for the window
 func (g *GUI) SetOnClose(handler func()) {
-	g.window.SetCloseIntercept(handler)
+	g.window.SetCloseIntercept(func() {
+		g.stop()
+		handler()
+	})
 }
 
 func (g *GUI) Run() {
@@ -129,6 +165,7 @@ func (g *GUI) Run() {
 	go func() {
 		<-c
 		fmt.Println("GUI: Received shutdown signal, quitting application...")
+		g.stop()
 		fyne.DoAndWait(func() {
 			g.app.Quit()
 		})
