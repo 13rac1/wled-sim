@@ -46,13 +46,16 @@ class DDPClient:
         # DDP header: 10 bytes
         # flags1: 0x41 (version 1, push flag) or 0x40 (version 1, no push)
         # flags2: 0x00 (no sequence number)
-        # type: 0x01 (RGB data)
+        # type: 0x0B (RGB data with 8 bits per element)
+        #       bits: C R TTT SSS = 0 0 001 011
+        #       C=0 (standard type), R=0 (reserved)
+        #       TTT=001 (RGB), SSS=011 (8 bits per element)
         # id: 0x01 (default output device)
         # offset: 0x00000000 (start at LED 0)
         # length: data_len (number of RGB bytes)
         
         flags1 = 0x41 if push else 0x40
-        header = struct.pack('>BBBB L H', flags1, 0x00, 0x01, 0x01, 0, data_len)
+        header = struct.pack('>BBBB L H', flags1, 0x00, 0x0B, 0x01, 0, data_len)
         
         # Convert RGB tuples to bytes
         rgb_bytes = bytes([component for rgb in rgb_data for component in rgb])
