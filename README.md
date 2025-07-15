@@ -5,7 +5,7 @@ A minimal but extensible desktop application that behaves like a real WLED node 
 ## Features
 
 * Configurable LED matrix display in a Fyne GUI.
-* Full WLED JSON API (`/json`, `/json/state`, `/json/info`).
+* Full WLED JSON API (`/json`, `/json/state`, `/json/info`) with `live` field support.
 * DDP UDP listener on port 4048 for real-time LED streaming.
 * Thread-safe shared LED state with power and brightness control.
 * Command-line flags and optional `config.yaml` for easy configuration.
@@ -106,6 +106,8 @@ curl http://localhost:8080/json/state
 ```bash
 curl http://localhost:8080/json/info
 ```
+
+The API responses include a `live` field that indicates when DDP data is actively being received (matches real WLED behavior).
 
 ### Manual Testing with DDP
 

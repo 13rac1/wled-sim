@@ -56,19 +56,22 @@ type segPayload struct {
 func (s *Server) handleGetJSON(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"state": gin.H{
-			"on":  s.state.Power(),
-			"bri": s.state.Brightness(),
+			"on":   s.state.Power(),
+			"bri":  s.state.Brightness(),
+			"live": s.state.IsLive(),
 		},
 		"info": gin.H{
-			"ver": "simulator",
+			"ver":  "simulator",
+			"live": s.state.IsLive(),
 		},
 	})
 }
 
 func (s *Server) handleGetState(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
-		"on":  s.state.Power(),
-		"bri": s.state.Brightness(),
+		"on":   s.state.Power(),
+		"bri":  s.state.Brightness(),
+		"live": s.state.IsLive(),
 	})
 }
 
@@ -76,6 +79,7 @@ func (s *Server) handleGetInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"ver":  "simulator",
 		"name": "WLED Simulator",
+		"live": s.state.IsLive(),
 	})
 }
 

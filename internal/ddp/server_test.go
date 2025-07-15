@@ -9,9 +9,9 @@ import (
 func TestServerSetVerbose(t *testing.T) {
 	s := NewServer(4048, state.NewLEDState(10, "#000000"))
 
-	// Default should be verbose
-	if !s.verbose {
-		t.Error("Expected default verbose to be true")
+	// Default should not be verbose
+	if s.verbose {
+		t.Error("Expected default verbose to be false")
 	}
 
 	s.SetVerbose(false)

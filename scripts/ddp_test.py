@@ -20,7 +20,6 @@ import socket
 import struct
 import time
 import argparse
-import sys
 from typing import List, Tuple
 
 

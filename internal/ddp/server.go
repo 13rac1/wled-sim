@@ -27,7 +27,7 @@ func NewServer(port int, s *state.LEDState) *Server {
 		state:   s,
 		ctx:     ctx,
 		cancel:  cancel,
-		verbose: false, // Enable verbose logging by default
+		verbose: false, // Disable verbose logging by default
 	}
 }
 
@@ -70,6 +70,9 @@ func (s *Server) processPacket(header *DDPHeader, data []byte) error {
 		}
 		return nil
 	}
+
+	// Mark that we're receiving live DDP data
+	s.state.SetLive()
 
 	// Process RGB data
 	leds := s.state.LEDs()
