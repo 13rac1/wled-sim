@@ -15,7 +15,7 @@ A minimal but extensible desktop application that behaves like a real WLED node 
 
 ![WLED Simulator Screenshot](/docs/wled-sim-demo.png)
 
-2x10 Matrix displays a rainbow during a DDP request.
+5x4 Matrix displays a rainbow during a DDP request.
 
 ## Quick Start
 
