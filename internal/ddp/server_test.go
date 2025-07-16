@@ -1,7 +1,9 @@
 package ddp
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	"wled-simulator/internal/state"
 )
@@ -41,4 +43,40 @@ func TestServerStop(t *testing.T) {
 	default:
 		t.Error("Expected context to be cancelled after Stop()")
 	}
+}
+
+func TestPortCollision(t *testing.T) {
+	// Use a specific port for testing
+	const testPort = 4049
+	ledState := state.NewLEDState(10, "#000000")
+
+	// Start first server
+	srv1 := NewServer(testPort, ledState)
+	go func() {
+		err := srv1.Start()
+		if err != nil {
+			t.Errorf("First server failed unexpectedly: %v", err)
+		}
+	}()
+
+	// Give the first server time to start
+	time.Sleep(100 * time.Millisecond)
+
+	// Try to start second server on same port
+	srv2 := NewServer(testPort, ledState)
+	err := srv2.Start()
+
+	// Verify we get the expected error
+	if err == nil {
+		t.Fatal("Expected error when starting server on occupied port")
+	}
+
+	expectedErrMsg := "bind: address already in use"
+	if !strings.Contains(err.Error(), expectedErrMsg) {
+		t.Errorf("Expected error containing '%s', got: %v", expectedErrMsg, err)
+	}
+
+	// Cleanup
+	srv1.Stop()
+	srv2.Stop()
 }

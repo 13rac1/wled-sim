@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -10,7 +11,6 @@ import (
 	"reflect"
 	"sync"
 	"syscall"
-	"time"
 
 	"wled-simulator/internal/api"
 	"wled-simulator/internal/ddp"
@@ -98,6 +98,8 @@ func main() {
 	fmt.Printf("HTTP API on %s\n", cfg.HTTPAddress)
 	fmt.Printf("DDP listening on port %d\n", cfg.DDPPort)
 
+	// Channel for server startup errors
+	startupErrors := make(chan error, 2)
 	var wg sync.WaitGroup
 
 	// Start DDP server
@@ -106,7 +108,13 @@ func main() {
 	go func() {
 		defer wg.Done()
 		if err := ddpServer.Start(); err != nil {
-			log.Printf("DDP server error: %v", err)
+			if errors.Is(err, syscall.EADDRINUSE) {
+				startupErrors <- fmt.Errorf("DDP port %d is already in use. Please choose a different port or stop the other process", cfg.DDPPort)
+			} else {
+				startupErrors <- fmt.Errorf("DDP server error: %v", err)
+			}
+		} else {
+			startupErrors <- nil
 		}
 	}()
 
@@ -116,13 +124,26 @@ func main() {
 	go func() {
 		defer wg.Done()
 		if err := apiServer.Start(); err != nil && err != http.ErrServerClosed {
-			log.Printf("API server error: %v", err)
+			if errors.Is(err, syscall.EADDRINUSE) {
+				startupErrors <- fmt.Errorf("HTTP port %s is already in use. Please choose a different port or stop the other process", cfg.HTTPAddress)
+			} else {
+				startupErrors <- fmt.Errorf("API server error: %v", err)
+			}
+		} else {
+			startupErrors <- nil
 		}
 	}()
 
-	// Give servers a moment to start
+	// Wait for both servers to start and check for errors
 	fmt.Println("Starting servers...")
-	time.Sleep(100 * time.Millisecond)
+	for i := 0; i < 2; i++ {
+		if err := <-startupErrors; err != nil {
+			// Stop any successfully started servers
+			ddpServer.Stop()
+			apiServer.Stop()
+			log.Fatalf("Failed to start servers: %v", err)
+		}
+	}
 
 	// Set up signal handling for graceful shutdown
 	c := make(chan os.Signal, 1)
