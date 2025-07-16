@@ -35,6 +35,18 @@ type GUI struct {
 	flashTimers   map[*canvas.Rectangle]*time.Timer
 }
 
+// safeFyneDo safely executes a function with fyne.Do, checking context first
+func (g *GUI) safeFyneDo(fn func()) {
+	select {
+	case <-g.ctx.Done():
+		// Context cancelled, don't update GUI
+		return
+	default:
+		// Safe to update GUI
+		fyne.Do(fn)
+	}
+}
+
 func NewApp(app fyne.App, s *state.LEDState, rows, cols int, wiring string, controls bool) *GUI {
 	totalLEDs := rows * cols
 	ctx, cancel := context.WithCancel(context.Background())
@@ -173,11 +185,14 @@ func NewApp(app fyne.App, s *state.LEDState, rows, cols int, wiring string, cont
 func (g *GUI) stop() {
 	g.cancel()
 
-	// Clean up flash timers
+	// Clean up flash timers with proper synchronization
 	for light, timer := range g.flashTimers {
 		timer.Stop()
 		delete(g.flashTimers, light)
 	}
+
+	// Wait a bit for any in-flight timer callbacks to complete
+	time.Sleep(50 * time.Millisecond)
 
 	g.wg.Wait()
 }
@@ -230,8 +245,8 @@ func (g *GUI) updateDisplay() {
 
 	leds := g.state.LEDs()
 
-	// Use fyne.Do instead of fyne.DoAndWait to avoid blocking if app is quitting
-	fyne.Do(func() {
+	// Use safeFyneDo wrapper to avoid race conditions during shutdown
+	g.safeFyneDo(func() {
 		for ledIndex, ledColor := range leds {
 			if ledIndex < len(leds) {
 				// Convert LED index to grid position based on wiring
@@ -319,14 +334,14 @@ func (g *GUI) flashLight(light *canvas.Rectangle, flashColor color.RGBA) {
 	}
 
 	// Change to flash color immediately
-	fyne.Do(func() {
+	g.safeFyneDo(func() {
 		light.FillColor = flashColor
 		light.Refresh()
 	})
 
 	// Set timer to revert to inactive color (longer duration for visibility)
 	g.flashTimers[light] = time.AfterFunc(500*time.Millisecond, func() {
-		fyne.Do(func() {
+		g.safeFyneDo(func() {
 			light.FillColor = color.RGBA{128, 128, 128, 255} // Gray (inactive)
 			light.Refresh()
 		})
