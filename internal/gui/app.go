@@ -36,14 +36,18 @@ type GUI struct {
 	timersMutex   sync.Mutex // Protect flashTimers map
 }
 
-// safeFyneDo safely executes a function with fyne.Do, checking context
-func (g *GUI) safeFyneDo(fn func()) {
+// SafeFyneDo safely executes a function with fyne.Do, checking context
+func (g *GUI) SafeFyneDo(fn func(), wait bool) {
+	// Check if context is cancelled before attempting GUI operations
 	select {
 	case <-g.ctx.Done():
-		// Context cancelled, don't update GUI
 		return
 	default:
-		// Safe to update GUI
+	}
+
+	if wait {
+		fyne.DoAndWait(fn)
+	} else {
 		fyne.Do(fn)
 	}
 }
@@ -251,8 +255,8 @@ func (g *GUI) updateDisplay() {
 
 	leds := g.state.LEDs()
 
-	// Use safeFyneDo wrapper to avoid race conditions during shutdown
-	g.safeFyneDo(func() {
+	// Use SafeFyneDo to avoid race conditions during shutdown
+	g.SafeFyneDo(func() {
 		for ledIndex, ledColor := range leds {
 			if ledIndex < len(leds) {
 				// Convert LED index to grid position based on wiring
@@ -267,7 +271,7 @@ func (g *GUI) updateDisplay() {
 				}
 			}
 		}
-	})
+	}, false) // Non-blocking for regular updates
 }
 
 // SetOnClose sets a custom close handler for the window
@@ -278,6 +282,7 @@ func (g *GUI) SetOnClose(handler func()) {
 	})
 }
 
+// Run starts the GUI
 func (g *GUI) Run() {
 	fmt.Println("GUI: Showing window...")
 
@@ -289,10 +294,10 @@ func (g *GUI) Run() {
 	go func() {
 		<-c
 		fmt.Println("GUI: Received shutdown signal, closing window...")
-		// Use fyne.DoAndWait to ensure window close happens in UI thread
-		fyne.DoAndWait(func() {
+		// Use SafeFyneDo with wait to ensure window close happens in UI thread
+		g.SafeFyneDo(func() {
 			g.window.Close()
-		})
+		}, true)
 	}()
 
 	g.window.ShowAndRun()
@@ -345,20 +350,27 @@ func (g *GUI) flashLight(light *canvas.Rectangle, flashColor color.RGBA) {
 	g.timersMutex.Lock()
 	if timer, exists := g.flashTimers[light]; exists {
 		timer.Stop()
+		delete(g.flashTimers, light)
 	}
 	g.timersMutex.Unlock()
 
-	// Change to flash color immediately
-	g.safeFyneDo(func() {
-		light.FillColor = flashColor
-		light.Refresh()
-	})
-
-	// Set timer to revert to inactive color (longer duration for visibility)
-	timer := time.AfterFunc(500*time.Millisecond, func() {
+	// Use SafeFyneDo with wait to ensure GUI updates complete before potential shutdown
+	g.SafeFyneDo(func() {
+		// Double check context hasn't been cancelled
 		select {
 		case <-g.ctx.Done():
-			// Context cancelled, just clean up timer
+			return
+		default:
+		}
+		light.FillColor = flashColor
+		light.Refresh()
+	}, true)
+
+	// Create timer before adding it to the map
+	timer := time.AfterFunc(500*time.Millisecond, func() {
+		// Check context first
+		select {
+		case <-g.ctx.Done():
 			g.timersMutex.Lock()
 			delete(g.flashTimers, light)
 			g.timersMutex.Unlock()
@@ -366,18 +378,35 @@ func (g *GUI) flashLight(light *canvas.Rectangle, flashColor color.RGBA) {
 		default:
 		}
 
-		g.safeFyneDo(func() {
+		// Use SafeFyneDo with wait for the revert operation too
+		g.SafeFyneDo(func() {
+			// Final context check before GUI update
+			select {
+			case <-g.ctx.Done():
+				g.timersMutex.Lock()
+				delete(g.flashTimers, light)
+				g.timersMutex.Unlock()
+				return
+			default:
+			}
 			light.FillColor = color.RGBA{128, 128, 128, 255} // Gray (inactive)
 			light.Refresh()
-		})
+		}, true)
+
 		// Clean up timer from map (with mutex protection)
 		g.timersMutex.Lock()
 		delete(g.flashTimers, light)
 		g.timersMutex.Unlock()
 	})
 
-	// Add timer to map (with mutex protection)
-	g.timersMutex.Lock()
-	g.flashTimers[light] = timer
-	g.timersMutex.Unlock()
+	// Only add timer to map if context is still valid
+	select {
+	case <-g.ctx.Done():
+		timer.Stop()
+		return
+	default:
+		g.timersMutex.Lock()
+		g.flashTimers[light] = timer
+		g.timersMutex.Unlock()
+	}
 }

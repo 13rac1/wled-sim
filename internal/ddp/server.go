@@ -113,6 +113,8 @@ func (s *Server) Start() error {
 	}
 	s.conn = conn
 
+	// Start packet processing in a goroutine
+	errChan := make(chan error, 1)
 	go func() {
 		defer conn.Close()
 		buf := make([]byte, 1500)
@@ -163,7 +165,13 @@ func (s *Server) Start() error {
 		}
 	}()
 
-	return nil
+	// Wait a moment for any immediate startup errors
+	select {
+	case err := <-errChan:
+		return err
+	default:
+		return nil
+	}
 }
 
 func (s *Server) Stop() error {

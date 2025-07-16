@@ -24,13 +24,13 @@ func TestSafeFyneDo_RespectsCancelledContext(t *testing.T) {
 
 	// Track if the function was called
 	called := false
-	gui.safeFyneDo(func() {
+	gui.SafeFyneDo(func() {
 		called = true
-	})
+	}, false)
 
 	// Function should not have been called due to cancelled context
 	if called {
-		t.Error("safeFyneDo should not execute function when context is cancelled")
+		t.Error("SafeFyneDo should not execute function when context is cancelled")
 	}
 }
 
@@ -44,13 +44,13 @@ func TestSafeFyneDo_ExecutesWhenSafe(t *testing.T) {
 
 	// Track if the function was called
 	called := false
-	gui.safeFyneDo(func() {
+	gui.SafeFyneDo(func() {
 		called = true
-	})
+	}, false)
 
 	// Function should have been called
 	if !called {
-		t.Error("safeFyneDo should execute function when context is active")
+		t.Error("SafeFyneDo should execute function when context is active")
 	}
 }
 
@@ -235,10 +235,10 @@ func TestTimerCallbackRaceCondition(t *testing.T) {
 
 	// Create a timer that will fire very soon
 	gui.flashTimers[rect] = time.AfterFunc(1*time.Millisecond, func() {
-		gui.safeFyneDo(func() {
+		gui.SafeFyneDo(func() {
 			rect.FillColor = color.RGBA{128, 128, 128, 255}
 			rect.Refresh()
-		})
+		}, true)
 		gui.timersMutex.Lock()
 		delete(gui.flashTimers, rect)
 		gui.timersMutex.Unlock()
@@ -250,15 +250,16 @@ func TestTimerCallbackRaceCondition(t *testing.T) {
 	// Wait for timer to potentially fire
 	time.Sleep(10 * time.Millisecond)
 
-	// Verify context is cancelled
-	select {
-	case <-gui.ctx.Done():
-		// Expected
-	default:
-		t.Error("context should be cancelled")
+	// Verify timers are cleaned up
+	gui.timersMutex.Lock()
+	timerCount := len(gui.flashTimers)
+	gui.timersMutex.Unlock()
+
+	if timerCount != 0 {
+		t.Error("Timer should be cleaned up after stop()")
 	}
 
-	// Restore original flash timers
+	// Restore original timers
 	gui.flashTimers = originalFlashTimers
 }
 
@@ -273,9 +274,9 @@ func BenchmarkSafeFyneDo(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			gui.safeFyneDo(func() {
+			gui.SafeFyneDo(func() {
 				// Minimal work
-			})
+			}, false)
 		}
 	})
 }
@@ -291,9 +292,9 @@ func BenchmarkSafeFyneDoWithCancelledContext(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			gui.safeFyneDo(func() {
+			gui.SafeFyneDo(func() {
 				// This should not execute
-			})
+			}, false)
 		}
 	})
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"image/color"
 	"net/http"
+	"time"
 
 	"wled-simulator/internal/state"
 
@@ -43,6 +44,7 @@ func (s *Server) Start() error {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
 	})
 
+	// Add routes
 	r.GET("/json", s.handleGetJSON)
 	r.GET("/json/state", s.handleGetState)
 	r.GET("/json/info", s.handleGetInfo)
@@ -53,7 +55,22 @@ func (s *Server) Start() error {
 		Handler: r,
 	}
 
-	return s.server.ListenAndServe()
+	// Try to start the server
+	errChan := make(chan error, 1)
+	go func() {
+		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			errChan <- err
+		}
+		close(errChan)
+	}()
+
+	// Wait a moment for any immediate startup errors
+	select {
+	case err := <-errChan:
+		return err
+	case <-time.After(100 * time.Millisecond):
+		return nil
+	}
 }
 
 func (s *Server) Stop() error {
@@ -74,7 +91,6 @@ type segPayload struct {
 }
 
 func (s *Server) handleGetJSON(c *gin.Context) {
-	s.state.ReportActivity(state.ActivityJSON, true) // Report successful JSON activity
 	c.JSON(http.StatusOK, gin.H{
 		"state": gin.H{
 			"on":   s.state.Power(),
@@ -89,7 +105,6 @@ func (s *Server) handleGetJSON(c *gin.Context) {
 }
 
 func (s *Server) handleGetState(c *gin.Context) {
-	s.state.ReportActivity(state.ActivityJSON, true) // Report successful JSON activity
 	c.JSON(http.StatusOK, gin.H{
 		"on":   s.state.Power(),
 		"bri":  s.state.Brightness(),
@@ -98,7 +113,6 @@ func (s *Server) handleGetState(c *gin.Context) {
 }
 
 func (s *Server) handleGetInfo(c *gin.Context) {
-	s.state.ReportActivity(state.ActivityJSON, true) // Report successful JSON activity
 	c.JSON(http.StatusOK, gin.H{
 		"ver":  "simulator",
 		"name": "WLED Simulator",
@@ -109,12 +123,9 @@ func (s *Server) handleGetInfo(c *gin.Context) {
 func (s *Server) handlePostState(c *gin.Context) {
 	var p statePayload
 	if err := c.ShouldBindJSON(&p); err != nil {
-		s.state.ReportActivity(state.ActivityJSON, false) // Report failed JSON activity
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	s.state.ReportActivity(state.ActivityJSON, true) // Report successful JSON activity
 
 	if p.On != nil {
 		s.state.SetPower(*p.On)

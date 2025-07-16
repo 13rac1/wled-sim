@@ -17,7 +17,6 @@ import (
 	"wled-simulator/internal/gui"
 	"wled-simulator/internal/state"
 
-	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"gopkg.in/yaml.v3"
 )
@@ -113,9 +112,9 @@ func main() {
 			} else {
 				startupErrors <- fmt.Errorf("DDP server error: %v", err)
 			}
-		} else {
-			startupErrors <- nil
+			return
 		}
+		startupErrors <- nil
 	}()
 
 	// Start HTTP API
@@ -129,9 +128,9 @@ func main() {
 			} else {
 				startupErrors <- fmt.Errorf("API server error: %v", err)
 			}
-		} else {
-			startupErrors <- nil
+			return
 		}
+		startupErrors <- nil
 	}()
 
 	// Wait for both servers to start and check for errors
@@ -141,6 +140,8 @@ func main() {
 			// Stop any successfully started servers
 			ddpServer.Stop()
 			apiServer.Stop()
+			// Wait for goroutines to finish
+			wg.Wait()
 			log.Fatalf("Failed to start servers: %v", err)
 		}
 	}
@@ -179,10 +180,10 @@ func main() {
 			fmt.Println("\nReceived shutdown signal...")
 			shutdownServers()
 
-			// Use fyne.DoAndWait since we're in a goroutine
-			fyne.DoAndWait(func() {
+			// Use SafeFyneDo since we're in a goroutine
+			guiApp.SafeFyneDo(func() {
 				myApp.Quit()
-			})
+			}, true)
 		}()
 
 		// Run GUI in main thread
