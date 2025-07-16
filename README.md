@@ -9,8 +9,13 @@ A minimal but extensible desktop application that behaves like a real WLED node 
 * DDP UDP listener on port 4048 for real-time LED streaming.
 * Thread-safe shared LED state with power and brightness control.
 * Command-line flags and optional `config.yaml` for easy configuration.
-* Modular internal packages (`api`, `ddp`, `gui`, `state`).
-* Basic unit tests.
+* Indicators for JSON and DDP activity, green for success and red for error.
+
+## Screenshot
+
+![WLED Simulator Screenshot](/docs/wled-sim-demo.png)
+
+2x10 Matrix displays a rainbow during a DDP request.
 
 ## Quick Start
 
@@ -29,12 +34,12 @@ Open `http://localhost:9090/json` in your browser or point your WLED mobile app 
 |-------------|---------|--------------------------------------|
 | `-rows`     | 10      | Number of LED rows                   |
 | `-cols`     | 2       | Number of LED columns                |
-| `-wiring`   | row     | LED wiring pattern: 'row' or 'col'  |
+| `-wiring`   | row     | LED wiring pattern: 'row' or 'col'   |
 | `-http`     | :8080   | HTTP listen address                  |
 | `-ddp-port` | 4048    | UDP port for DDP                     |
-| `-init`     | #000000 | Initial LED colour (hex)             |
+| `-init`     | #000000 | Initial LED colour (hex)           |
 | `-controls` | false   | Show power/brightness controls in UI |
-| `-headless` | false   | Disable GUI (API/DDP only)           |
+| `-headless` | false   | Disable GUI for CI (API/DDP only)    |
 | `-v`        | false   | Verbose logging                      |
 
 You can also create a `config.yaml` file with the same keys to persist defaults.
@@ -153,8 +158,6 @@ python3 scripts/ddp_test.py --color green --leds 30
 python3 scripts/ddp_test.py --color white --host 192.168.1.100
 ```
 
-## Extending
+## License
 
-* **Add effects** – implement a ticker that mutates the `LEDState` slice, then expose the effect list in `/json`.
-* **Additional protocols** – mirror the `ddp` package structure for protocols like E1.31 or MQTT.
-* **Headless CI** – run with `-headless` to integrate in continuous integration pipelines.
+AGPL

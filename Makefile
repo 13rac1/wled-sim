@@ -69,7 +69,7 @@ run: build
 .PHONY: run-demo
 run-demo: build
 	@echo "Running $(BINARY_NAME) with demo config..."
-	./$(BUILD_DIR)/$(BINARY_NAME) -rows 3 -cols 4 -wiring col -init "#00FF00"
+	./$(BUILD_DIR)/$(BINARY_NAME) -rows 4 -cols 5 -wiring col -init "#00FF00"
 
 # Run in headless mode
 .PHONY: run-headless
