@@ -17,6 +17,7 @@ type Server struct {
 }
 
 func NewServer(addr string, s *state.LEDState) *Server {
+	gin.SetMode(gin.ReleaseMode)
 	return &Server{addr: addr, state: s}
 }
 

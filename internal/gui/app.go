@@ -33,9 +33,10 @@ type GUI struct {
 	jsonLightRect *canvas.Rectangle
 	ddpLightRect  *canvas.Rectangle
 	flashTimers   map[*canvas.Rectangle]*time.Timer
+	timersMutex   sync.Mutex // Protect flashTimers map
 }
 
-// safeFyneDo safely executes a function with fyne.Do, checking context first
+// safeFyneDo safely executes a function with fyne.Do, checking context
 func (g *GUI) safeFyneDo(fn func()) {
 	select {
 	case <-g.ctx.Done():
@@ -164,8 +165,9 @@ func NewApp(app fyne.App, s *state.LEDState, rows, cols int, wiring string, cont
 
 	gui.window.Resize(fyne.NewSize(windowWidth, gridHeight+activityHeight+padding))
 
-	// Default close behavior just quits the app
+	// Set up graceful shutdown on window close
 	gui.window.SetCloseIntercept(func() {
+		fmt.Println("GUI: Window closing, shutting down gracefully...")
 		gui.stop()
 		gui.app.Quit()
 	})
@@ -185,14 +187,18 @@ func NewApp(app fyne.App, s *state.LEDState, rows, cols int, wiring string, cont
 func (g *GUI) stop() {
 	g.cancel()
 
-	// Clean up flash timers with proper synchronization
+	// Clean up flash timers (with mutex protection)
+	g.timersMutex.Lock()
 	for light, timer := range g.flashTimers {
 		timer.Stop()
 		delete(g.flashTimers, light)
 	}
+	// Clear the map completely
+	g.flashTimers = make(map[*canvas.Rectangle]*time.Timer)
+	g.timersMutex.Unlock()
 
-	// Wait a bit for any in-flight timer callbacks to complete
-	time.Sleep(50 * time.Millisecond)
+	// Wait longer for any in-flight timer callbacks to complete
+	time.Sleep(200 * time.Millisecond)
 
 	g.wg.Wait()
 }
@@ -279,13 +285,13 @@ func (g *GUI) Run() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
-	// Handle shutdown signal
+	// Handle shutdown signal in a separate goroutine
 	go func() {
 		<-c
-		fmt.Println("GUI: Received shutdown signal, quitting application...")
-		g.stop()
+		fmt.Println("GUI: Received shutdown signal, closing window...")
+		// Use fyne.DoAndWait to ensure window close happens in UI thread
 		fyne.DoAndWait(func() {
-			g.app.Quit()
+			g.window.Close()
 		})
 	}()
 
@@ -328,10 +334,19 @@ func (g *GUI) handleActivityEvent(event state.ActivityEvent) {
 
 // flashLight flashes a light with the specified color for a brief moment
 func (g *GUI) flashLight(light *canvas.Rectangle, flashColor color.RGBA) {
-	// Cancel any existing timer for this light
+	// Check context before starting any timer operations
+	select {
+	case <-g.ctx.Done():
+		return
+	default:
+	}
+
+	// Cancel any existing timer for this light (with mutex protection)
+	g.timersMutex.Lock()
 	if timer, exists := g.flashTimers[light]; exists {
 		timer.Stop()
 	}
+	g.timersMutex.Unlock()
 
 	// Change to flash color immediately
 	g.safeFyneDo(func() {
@@ -340,11 +355,29 @@ func (g *GUI) flashLight(light *canvas.Rectangle, flashColor color.RGBA) {
 	})
 
 	// Set timer to revert to inactive color (longer duration for visibility)
-	g.flashTimers[light] = time.AfterFunc(500*time.Millisecond, func() {
+	timer := time.AfterFunc(500*time.Millisecond, func() {
+		select {
+		case <-g.ctx.Done():
+			// Context cancelled, just clean up timer
+			g.timersMutex.Lock()
+			delete(g.flashTimers, light)
+			g.timersMutex.Unlock()
+			return
+		default:
+		}
+
 		g.safeFyneDo(func() {
 			light.FillColor = color.RGBA{128, 128, 128, 255} // Gray (inactive)
 			light.Refresh()
 		})
+		// Clean up timer from map (with mutex protection)
+		g.timersMutex.Lock()
 		delete(g.flashTimers, light)
+		g.timersMutex.Unlock()
 	})
+
+	// Add timer to map (with mutex protection)
+	g.timersMutex.Lock()
+	g.flashTimers[light] = timer
+	g.timersMutex.Unlock()
 }
