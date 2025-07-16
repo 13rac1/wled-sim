@@ -99,7 +99,13 @@ func (s *Server) handleGetJSON(c *gin.Context) {
 		},
 		"info": gin.H{
 			"ver":  "simulator",
+			"ip":   "127.0.0.1",
+			"name": "WLED Simulator",
 			"live": s.state.IsLive(),
+			"mac":  "ABCDEF123456",
+			"leds": gin.H{
+				"count": len(s.state.LEDs()),
+			},
 		},
 	})
 }
@@ -115,8 +121,13 @@ func (s *Server) handleGetState(c *gin.Context) {
 func (s *Server) handleGetInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"ver":  "simulator",
+		"ip":   "127.0.0.1",
 		"name": "WLED Simulator",
 		"live": s.state.IsLive(),
+		"mac":  "ABCDEF123456",
+		"leds": gin.H{
+			"count": len(s.state.LEDs()),
+		},
 	})
 }
 

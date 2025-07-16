@@ -32,6 +32,12 @@ build-release:
 	@mkdir -p $(BUILD_DIR)
 	$(GOBUILD) -ldflags="-s -w" -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd
 
+# Generate the WLED Client
+.PHONY: gen
+gen:
+	# Not used
+	openapi-generator-cli generate -g go -i docs/openapi-wled.json -o internal/openapi
+
 # Clean build artifacts
 .PHONY: clean
 clean:
