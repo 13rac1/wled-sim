@@ -133,6 +133,7 @@ func (s *Server) Start() error {
 				// Parse and validate header
 				header, err := ParseHeader(buf[:n])
 				if err != nil {
+					s.state.ReportActivity(state.ActivityDDP, false) // Report failed DDP activity
 					if s.verbose {
 						log.Printf("[DDP] Invalid packet from %s: %v", remoteAddr, err)
 					}
@@ -141,6 +142,7 @@ func (s *Server) Start() error {
 
 				// Additional validation
 				if err := ValidateHeader(header, &s.lastSequence); err != nil {
+					s.state.ReportActivity(state.ActivityDDP, false) // Report failed DDP activity
 					if s.verbose {
 						log.Printf("[DDP] Packet validation failed from %s: %v", remoteAddr, err)
 					}
@@ -149,11 +151,14 @@ func (s *Server) Start() error {
 
 				// Process the packet
 				if err := s.processPacket(header, buf[:n]); err != nil {
+					s.state.ReportActivity(state.ActivityDDP, false) // Report failed DDP activity
 					if s.verbose {
 						log.Printf("[DDP] Packet processing failed from %s: %v", remoteAddr, err)
 					}
 					continue
 				}
+
+				s.state.ReportActivity(state.ActivityDDP, true) // Report successful DDP activity
 			}
 		}
 	}()
