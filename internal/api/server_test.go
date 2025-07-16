@@ -1,7 +1,6 @@
 package api
 
 import (
-	//"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -25,6 +24,7 @@ type testInfo struct {
 	Ver  string `json:"ver"`
 	Name string `json:"name"`
 	Live bool   `json:"live"`
+	Mac  string `json:"mac"`
 }
 
 type testCombined struct {
@@ -32,9 +32,15 @@ type testCombined struct {
 	Info  testInfo  `json:"info"`
 }
 
+// Default test configuration
+const (
+	testDDPPort = 4048
+	testLEDs    = 20
+)
+
 func TestGetState(t *testing.T) {
-	ledState := state.NewLEDState(10, "#000000")
-	srv := NewServer(":0", ledState)
+	ledState := state.NewLEDState(testLEDs, "#000000")
+	srv := NewServer(":0", ledState, testDDPPort)
 
 	r := gin.Default()
 	r.GET("/json/state", srv.handleGetState)
@@ -61,8 +67,8 @@ func TestGetState(t *testing.T) {
 }
 
 func TestGetInfo(t *testing.T) {
-	ledState := state.NewLEDState(10, "#000000")
-	srv := NewServer(":0", ledState)
+	ledState := state.NewLEDState(testLEDs, "#000000")
+	srv := NewServer(":0", ledState, testDDPPort)
 
 	r := gin.Default()
 	r.GET("/json/info", srv.handleGetInfo)
@@ -93,8 +99,8 @@ func TestGetInfo(t *testing.T) {
 }
 
 func TestGetJSON(t *testing.T) {
-	ledState := state.NewLEDState(10, "#000000")
-	srv := NewServer(":0", ledState)
+	ledState := state.NewLEDState(testLEDs, "#000000")
+	srv := NewServer(":0", ledState, testDDPPort)
 
 	r := gin.Default()
 	r.GET("/json", srv.handleGetJSON)
@@ -130,8 +136,8 @@ func TestGetJSON(t *testing.T) {
 }
 
 func TestLiveFieldWithDDPActivity(t *testing.T) {
-	ledState := state.NewLEDState(10, "#000000")
-	srv := NewServer(":0", ledState)
+	ledState := state.NewLEDState(testLEDs, "#000000")
+	srv := NewServer(":0", ledState, testDDPPort)
 
 	r := gin.Default()
 	r.GET("/json/info", srv.handleGetInfo)
@@ -158,13 +164,93 @@ func TestLiveFieldWithDDPActivity(t *testing.T) {
 	}
 }
 
+func TestMACAddressGeneration(t *testing.T) {
+	tests := []struct {
+		name     string
+		httpAddr string
+		ddpPort  int
+		ledCount int
+		wantMAC  string
+	}{
+		{
+			name:     "Default configuration",
+			httpAddr: ":8080",
+			ddpPort:  4048,
+			ledCount: 20,
+			wantMAC:  "WL:ED:90:D0:00:14", // Port 8080 = 0x1F90, last byte = 0x90, LEDs = 20 = 0x0014
+		},
+		{
+			name:     "Custom ports and dimensions",
+			httpAddr: ":9090",
+			ddpPort:  5000,
+			ledCount: 128,
+			wantMAC:  "WL:ED:82:88:00:80", // Port 9090 = 0x2382, last byte = 0x82, LEDs = 128 = 0x0080
+		},
+		{
+			name:     "Large LED count",
+			httpAddr: ":8080",
+			ddpPort:  4048,
+			ledCount: 65535,
+			wantMAC:  "WL:ED:90:D0:FF:FF", // Port 8080 = 0x1F90, last byte = 0x90, LEDs = 65535 = 0xFFFF
+		},
+		{
+			name:     "IP with port",
+			httpAddr: "127.0.0.1:8080",
+			ddpPort:  4048,
+			ledCount: 20,
+			wantMAC:  "WL:ED:90:D0:00:14", // Port 8080 = 0x1F90, last byte = 0x90, LEDs = 20 = 0x0014
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ledState := state.NewLEDState(tt.ledCount, "#000000")
+			srv := NewServer(tt.httpAddr, ledState, tt.ddpPort)
+
+			// Test MAC in /json/info endpoint
+			r := gin.Default()
+			r.GET("/json/info", srv.handleGetInfo)
+
+			req := httptest.NewRequest(http.MethodGet, "/json/info", nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			var resp testInfo
+			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("bad JSON: %v", err)
+			}
+
+			if resp.Mac != tt.wantMAC {
+				t.Errorf("MAC = %q, want %q", resp.Mac, tt.wantMAC)
+			}
+
+			// Verify MAC is consistent in /json endpoint
+			r = gin.Default()
+			r.GET("/json", srv.handleGetJSON)
+
+			req = httptest.NewRequest(http.MethodGet, "/json", nil)
+			w = httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			var combined testCombined
+			if err := json.Unmarshal(w.Body.Bytes(), &combined); err != nil {
+				t.Fatalf("bad JSON: %v", err)
+			}
+
+			if combined.Info.Mac != tt.wantMAC {
+				t.Errorf("MAC in /json = %q, want %q", combined.Info.Mac, tt.wantMAC)
+			}
+		})
+	}
+}
+
 func TestPortCollision(t *testing.T) {
 	// Use a specific port for testing
 	const testPort = ":8081"
-	ledState := state.NewLEDState(10, "#000000")
+	ledState := state.NewLEDState(testLEDs, "#000000")
 
 	// Start first server
-	srv1 := NewServer(testPort, ledState)
+	srv1 := NewServer(testPort, ledState, testDDPPort)
 	errChan1 := make(chan error, 1)
 	go func() {
 		err := srv1.Start()
@@ -182,7 +268,7 @@ func TestPortCollision(t *testing.T) {
 	}
 
 	// Try to start second server on same port
-	srv2 := NewServer(testPort, ledState)
+	srv2 := NewServer(testPort, ledState, testDDPPort)
 	errChan2 := make(chan error, 1)
 	go func() {
 		err := srv2.Start()
@@ -211,10 +297,10 @@ func TestPortCollision(t *testing.T) {
 func TestNoRouteHandler(t *testing.T) {
 	// Use a specific port for testing
 	const testPort = ":8082"
-	ledState := state.NewLEDState(10, "#000000")
+	ledState := state.NewLEDState(testLEDs, "#000000")
 
 	// Start server
-	srv := NewServer(testPort, ledState)
+	srv := NewServer(testPort, ledState, testDDPPort)
 	errChan := make(chan error, 1)
 	go func() {
 		err := srv.Start()

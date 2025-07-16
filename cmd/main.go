@@ -119,7 +119,7 @@ func main() {
 	}()
 
 	// Start HTTP API
-	apiServer := api.NewServer(cfg.HTTPAddress, ledState)
+	apiServer := api.NewServer(cfg.HTTPAddress, ledState, cfg.DDPPort)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()

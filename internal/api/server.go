@@ -2,8 +2,11 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"image/color"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"wled-simulator/internal/state"
@@ -12,14 +15,69 @@ import (
 )
 
 type Server struct {
-	addr   string
-	state  *state.LEDState
-	server *http.Server
+	addr     string
+	state    *state.LEDState
+	server   *http.Server
+	httpPort int
+	ddpPort  int
+	macAddr  string
 }
 
-func NewServer(addr string, s *state.LEDState) *Server {
+// NewServer creates a new API server with the given configuration
+func NewServer(addr string, s *state.LEDState, ddpPort int) *Server {
+	// Extract HTTP port from addr string (format ":8080" or "127.0.0.1:8080")
+	parts := strings.Split(addr, ":")
+	httpPort, _ := strconv.Atoi(parts[len(parts)-1])
+
+	srv := &Server{
+		addr:     addr,
+		state:    s,
+		httpPort: httpPort,
+		ddpPort:  ddpPort,
+	}
+
+	// Generate MAC address once during initialization
+	srv.macAddr = srv.generateMACAddress()
+
+	// Log the MAC address at startup
+	fmt.Printf("WLED Simulator MAC Address: %s (http:%d, ddp:%d, leds:%d)",
+		srv.macAddr, srv.httpPort, srv.ddpPort, len(s.LEDs()))
+
 	gin.SetMode(gin.ReleaseMode)
-	return &Server{addr: addr, state: s}
+	return srv
+}
+
+// generateMACAddress creates a deterministic MAC address based on configuration
+func (s *Server) generateMACAddress() string {
+	// Use configuration values to generate MAC bytes
+	// Format: WL:ED:HP:DP:LL:LL
+	// WL:ED = Fixed prefix for WLED
+	// HP = HTTP port last byte
+	// DP = DDP port last byte
+	// LL:LL = Total LED count as 16-bit number
+
+	// Extract port number from HTTP address
+	httpPort := s.httpPort
+	if httpPort == 0 {
+		// Default to 80 if port extraction fails
+		httpPort = 80
+	}
+
+	// Get last byte of ports
+	httpLastByte := byte(httpPort & 0xFF)
+	ddpLastByte := byte(s.ddpPort & 0xFF)
+
+	// Get total LED count as 16-bit number
+	ledCount := len(s.state.LEDs())
+	ledCountHigh := byte((ledCount >> 8) & 0xFF)
+	ledCountLow := byte(ledCount & 0xFF)
+
+	return fmt.Sprintf("WL:ED:%02X:%02X:%02X:%02X",
+		httpLastByte,
+		ddpLastByte,
+		ledCountHigh,
+		ledCountLow,
+	)
 }
 
 func (s *Server) Start() error {
@@ -102,7 +160,7 @@ func (s *Server) handleGetJSON(c *gin.Context) {
 			"ip":   "127.0.0.1",
 			"name": "WLED Simulator",
 			"live": s.state.IsLive(),
-			"mac":  "ABCDEF123456",
+			"mac":  s.macAddr,
 			"leds": gin.H{
 				"count": len(s.state.LEDs()),
 			},
@@ -124,7 +182,7 @@ func (s *Server) handleGetInfo(c *gin.Context) {
 		"ip":   "127.0.0.1",
 		"name": "WLED Simulator",
 		"live": s.state.IsLive(),
-		"mac":  "ABCDEF123456",
+		"mac":  s.macAddr,
 		"leds": gin.H{
 			"count": len(s.state.LEDs()),
 		},
