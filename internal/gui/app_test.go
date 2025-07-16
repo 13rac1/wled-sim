@@ -9,50 +9,10 @@ import (
 
 	"wled-simulator/internal/state"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/test"
 )
-
-func TestSafeFyneDo_RespectsCancelledContext(t *testing.T) {
-	// Create a cancelled context
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // Cancel immediately
-
-	gui := &GUI{
-		ctx: ctx,
-	}
-
-	// Track if the function was called
-	called := false
-	gui.SafeFyneDo(func() {
-		called = true
-	}, false)
-
-	// Function should not have been called due to cancelled context
-	if called {
-		t.Error("SafeFyneDo should not execute function when context is cancelled")
-	}
-}
-
-func TestSafeFyneDo_ExecutesWhenSafe(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	gui := &GUI{
-		ctx: ctx,
-	}
-
-	// Track if the function was called
-	called := false
-	gui.SafeFyneDo(func() {
-		called = true
-	}, false)
-
-	// Function should have been called
-	if !called {
-		t.Error("SafeFyneDo should execute function when context is active")
-	}
-}
 
 func TestStop_CleansUpTimers(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -235,10 +195,10 @@ func TestTimerCallbackRaceCondition(t *testing.T) {
 
 	// Create a timer that will fire very soon
 	gui.flashTimers[rect] = time.AfterFunc(1*time.Millisecond, func() {
-		gui.SafeFyneDo(func() {
+		fyne.DoAndWait(func() {
 			rect.FillColor = color.RGBA{128, 128, 128, 255}
 			rect.Refresh()
-		}, true)
+		})
 		gui.timersMutex.Lock()
 		delete(gui.flashTimers, rect)
 		gui.timersMutex.Unlock()
@@ -261,40 +221,4 @@ func TestTimerCallbackRaceCondition(t *testing.T) {
 
 	// Restore original timers
 	gui.flashTimers = originalFlashTimers
-}
-
-func BenchmarkSafeFyneDo(b *testing.B) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	gui := &GUI{
-		ctx: ctx,
-	}
-
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			gui.SafeFyneDo(func() {
-				// Minimal work
-			}, false)
-		}
-	})
-}
-
-func BenchmarkSafeFyneDoWithCancelledContext(b *testing.B) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // Cancel immediately
-
-	gui := &GUI{
-		ctx: ctx,
-	}
-
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			gui.SafeFyneDo(func() {
-				// This should not execute
-			}, false)
-		}
-	})
 }

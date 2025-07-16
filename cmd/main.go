@@ -17,6 +17,7 @@ import (
 	"wled-simulator/internal/gui"
 	"wled-simulator/internal/state"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"gopkg.in/yaml.v3"
 )
@@ -180,10 +181,10 @@ func main() {
 			fmt.Println("\nReceived shutdown signal...")
 			shutdownServers()
 
-			// Use SafeFyneDo since we're in a goroutine
-			guiApp.SafeFyneDo(func() {
+			// Use fyne.DoAndWait since we're in a goroutine
+			fyne.DoAndWait(func() {
 				myApp.Quit()
-			}, true)
+			})
 		}()
 
 		// Run GUI in main thread
