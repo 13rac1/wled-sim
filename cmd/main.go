@@ -30,6 +30,7 @@ type Config struct {
 	HTTPAddress string `yaml:"http_address" flag:"http"`
 	DDPPort     int    `yaml:"ddp_port" flag:"ddp-port"`
 	InitColor   string `yaml:"init_color" flag:"init"`
+	Name        string `yaml:"name" flag:"name"`
 	Controls    bool   `yaml:"controls" flag:"controls"`
 	Headless    bool   `yaml:"headless" flag:"headless"`
 	Verbose     bool   `yaml:"verbose" flag:"v"`
@@ -44,6 +45,7 @@ func main() {
 	flag.StringVar(&cfg.HTTPAddress, "http", ":8080", "HTTP listen address")
 	flag.IntVar(&cfg.DDPPort, "ddp-port", 4048, "UDP port for DDP")
 	flag.StringVar(&cfg.InitColor, "init", "#000000", "Initial color hex")
+	flag.StringVar(&cfg.Name, "name", "", "Display name for the LED matrix")
 	flag.BoolVar(&cfg.Controls, "controls", false, "Show power/brightness controls in GUI")
 	flag.BoolVar(&cfg.Headless, "headless", false, "Run without GUI")
 	flag.BoolVar(&cfg.Verbose, "v", false, "Verbose logging")
@@ -155,7 +157,7 @@ func main() {
 	if !cfg.Headless {
 		fmt.Println("Starting GUI...")
 		myApp := app.NewWithID("com.example.wled-simulator")
-		guiApp := gui.NewApp(myApp, ledState, cfg.Rows, cfg.Cols, cfg.Wiring, cfg.Controls)
+		guiApp := gui.NewApp(myApp, ledState, cfg.Rows, cfg.Cols, cfg.Wiring, cfg.Name, cfg.Controls)
 
 		// Create shutdown function for servers
 		shutdownServers := func() {

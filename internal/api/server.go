@@ -40,7 +40,7 @@ func NewServer(addr string, s *state.LEDState, ddpPort int) *Server {
 	srv.macAddr = srv.generateMACAddress()
 
 	// Log the MAC address at startup
-	fmt.Printf("WLED Simulator MAC Address: %s (http:%d, ddp:%d, leds:%d)",
+	fmt.Printf("WLED Simulator MAC Address: %s (http:%d, ddp:%d, leds:%d)\n",
 		srv.macAddr, srv.httpPort, srv.ddpPort, len(s.LEDs()))
 
 	gin.SetMode(gin.ReleaseMode)

@@ -36,7 +36,7 @@ type GUI struct {
 	timersMutex   sync.Mutex // Protect flashTimers map
 }
 
-func NewApp(app fyne.App, s *state.LEDState, rows, cols int, wiring string, controls bool) *GUI {
+func NewApp(app fyne.App, s *state.LEDState, rows, cols int, wiring, name string, controls bool) *GUI {
 	totalLEDs := rows * cols
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -130,20 +130,52 @@ func NewApp(app fyne.App, s *state.LEDState, rows, cols int, wiring string, cont
 	// Use a simple container that allows the grid to be resizable
 	gridContainer := container.NewBorder(nil, nil, nil, nil, grid)
 
-	// Create main container with activity lights at top and LED grid below
-	mainContainer := container.NewBorder(
-		activityContainer, // top
-		nil,               // bottom
-		nil,               // left
-		nil,               // right
-		gridContainer,     // center (resizable)
-	)
+	// Create main container with activity lights at top, name below that, and LED grid at bottom
+	var mainContainer *fyne.Container
+	if name != "" {
+		// Create name display
+		nameLabel := widget.NewLabel(name)
+		nameLabel.Alignment = fyne.TextAlignCenter
+		nameLabel.TextStyle = fyne.TextStyle{Bold: true}
+		nameContainer := container.NewCenter(nameLabel)
+
+		// Create a compact vertical container for activity + name
+		topSection := container.NewWithoutLayout(
+			activityContainer,
+			nameContainer,
+		)
+		// Position elements with minimal spacing
+		activityContainer.Resize(fyne.NewSize(120, 35))
+		activityContainer.Move(fyne.NewPos(0, 0))
+		nameContainer.Resize(fyne.NewSize(120, 20))
+		nameContainer.Move(fyne.NewPos(0, 15))   // Move name right after activity lights
+		topSection.Resize(fyne.NewSize(120, 55)) // Reduced height for tighter spacing
+		mainContainer = container.NewBorder(
+			topSection,    // top
+			nil,           // bottom
+			nil,           // left
+			nil,           // right
+			gridContainer, // center (resizable)
+		)
+	} else {
+		mainContainer = container.NewBorder(
+			activityContainer, // top
+			nil,               // bottom
+			nil,               // left
+			nil,               // right
+			gridContainer,     // center (resizable)
+		)
+	}
 
 	gui.window.SetContent(mainContainer)
 
 	// Calculate proper window size based on the actual grid content
 	activityHeight := float32(35) // Height for activity lights area
-	padding := float32(20)        // Padding around the grid
+	nameHeight := float32(0)      // Height for name display
+	if name != "" {
+		nameHeight = 25 // Compact spacing: 5px gap + 20px name height
+	}
+	padding := float32(20) // Padding around the grid
 
 	// Set window size based on grid dimensions with some spacing
 	windowWidth := gridWidth + padding
@@ -151,7 +183,7 @@ func NewApp(app fyne.App, s *state.LEDState, rows, cols int, wiring string, cont
 		windowWidth = 120
 	}
 
-	gui.window.Resize(fyne.NewSize(windowWidth, gridHeight+activityHeight+padding))
+	gui.window.Resize(fyne.NewSize(windowWidth, gridHeight+activityHeight+nameHeight+padding))
 
 	// Set up graceful shutdown on window close
 	gui.window.SetCloseIntercept(func() {

@@ -4,6 +4,7 @@ wiring: "col"
 http_address: ":8080"
 ddp_port: 4048
 init_color: "#FF0000"
+name: "LED Light"
 controls: true
 headless: false
 verbose: true
